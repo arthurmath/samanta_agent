@@ -1,0 +1,29 @@
+--- HÔTEL ROYAL PALACE ---
+Adresse: 15 Avenue des Champs-Élysées, 75008 Paris
+Étoiles: 5 étoiles
+Description: Un palace parisien d'exception offrant une vue imprenable sur la Tour Eiffel.
+
+Chambres disponibles:
+- Suite Présidentielle: 1200€/nuit, 2 disponibles, capacité 4 personnes, vue Tour Eiffel
+- Suite Junior: 650€/nuit, 5 disponibles, capacité 2 personnes, vue jardin
+- Chambre Deluxe: 450€/nuit, 8 disponibles, capacité 2 personnes, vue ville
+- Chambre Standard: 280€/nuit, 12 disponibles, capacité 2 personnes
+
+Équipements: Spa, piscine intérieure chauffée, salle de fitness, conciergerie 24h/24, parking privé, WiFi gratuit
+
+Restaurant "Le Diamant":
+- Cuisine: Gastronomique française
+- Chef: Pierre Leblanc (2 étoiles Michelin)
+- Horaires: Petit-déjeuner 7h-10h30, Déjeuner 12h-14h30, Dîner 19h-22h30
+- Réservation obligatoire pour le dîner
+- Menu dégustation: 180€, Menu à la carte: 80-150€
+
+Bar "L'Écrin":
+- Horaires: 11h-1h
+- Cocktails signature, champagnes millésimés
+
+Activités proposées:
+- Cours de cuisine avec le Chef: Samedi 10h, 150€/personne
+- Dégustation de vins: Vendredi 18h, 90€/personne
+- Visite privée du Louvre: Sur demande, 250€/personne
+- Croisière Seine: Tous les jours 20h, 120€/personne

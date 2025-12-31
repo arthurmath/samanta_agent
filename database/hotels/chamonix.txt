@@ -1,0 +1,30 @@
+--- HÔTEL MONT-BLANC EXCELLENCE ---
+Adresse: 123 Route du Mont-Blanc, 74400 Chamonix
+Étoiles: 5 étoiles
+Description: Chalet de luxe au pied du Mont-Blanc, parfait pour les amateurs de ski et de montagne.
+
+Chambres disponibles:
+- Chalet Privé: 1800€/nuit, 2 disponibles, capacité 8 personnes, jacuzzi privé
+- Suite Alpin: 550€/nuit, 4 disponibles, capacité 4 personnes, vue Mont-Blanc
+- Chambre Montagne: 320€/nuit, 6 disponibles, capacité 2 personnes
+- Chambre Cosy: 190€/nuit, 8 disponibles, capacité 2 personnes
+
+Équipements: Ski-room chauffé, navette ski gratuite, spa alpin, sauna, hammam, cheminées dans chaque chambre
+
+Restaurant "L'Altitude":
+- Cuisine: Savoyarde gastronomique
+- Chef: Jean-Marc Dubois
+- Horaires: Petit-déjeuner 6h30-10h, Dîner 19h-22h
+- Spécialités: Fondue truffée, Raclette premium, Tartiflette revisitée
+- Menu: 55-95€
+
+Bar "Le Sommet":
+- Horaires: 16h-minuit
+- Vins chauds, chocolats chauds gourmands, cocktails alpins
+
+Activités proposées:
+- Ski avec moniteur privé: Tous les jours, 200€/demi-journée
+- Randonnée raquettes: Mardi et Jeudi 9h, 70€/personne
+- Spa privatif en couple: Sur réservation, 180€/2h
+- Vol en hélicoptère Mont-Blanc: Sur demande, 350€/personne
+- Soirée fondue traditionnelle: Vendredi 20h, inclus pour les résidents

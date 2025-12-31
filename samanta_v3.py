@@ -4,15 +4,14 @@ Utilise l'API Realtime d'OpenAI pour une interaction vocale à faible latence.
 """
 
 import asyncio
+import csv
 import os
 import queue
 import sys
 import threading
 from typing import Any
-
 import numpy as np
 import sounddevice as sd
-from dotenv import load_dotenv
 
 from agents import function_tool
 from agents.realtime import (
@@ -24,7 +23,9 @@ from agents.realtime import (
 )
 from agents.realtime.model import RealtimeModelConfig
 
+from dotenv import load_dotenv
 load_dotenv()
+
 
 # Audio configuration
 CHUNK_LENGTH_S = 0.04  # 40ms
@@ -35,149 +36,125 @@ ENERGY_THRESHOLD = 0.05  # Seuil RMS pour détection de parole (augmenté pour �
 PREBUFFER_CHUNKS = 3
 FADE_OUT_MS = 12
 PLAYBACK_ECHO_MARGIN = 0.01  # Marge supplémentaire pour filtrer l'écho
-DATABASE_PATH = "database_hotel.txt"
 
 
-def load_database() -> str:
-    """Charge la base de données des hôtels."""
+def load_database(path:str) -> str:
+    """Charge la base de données d'un hôtel."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    full_path = os.path.join(script_dir, DATABASE_PATH)
+    full_path = os.path.join(script_dir, path)
     with open(full_path, "r", encoding="utf-8") as f:
         return f.read()
 
 
-# Charger la base de données au démarrage
-DATABASE = load_database()
-
 
 # Définition des outils pour l'agent
+
 @function_tool
 def rechercher_hotel(nom_hotel: str) -> str:
-    """Recherche les informations sur un hôtel spécifique."""
+    """Recherche les informations sur un hôtel spécifique.
+        Prend en entrée le nom de l'hôtel."""
     nom_lower = nom_hotel.lower()
     if "royal" in nom_lower or "palace" in nom_lower or "paris" in nom_lower:
-        return """Hôtel Royal Palace - Paris
-Adresse: 15 Avenue des Champs-Élysées, 75008 Paris
-5 étoiles - Vue sur la Tour Eiffel
-Chambres: Suite Présidentielle (1200€), Suite Junior (650€), Chambre Deluxe (450€), Chambre Standard (280€)
-Équipements: Spa, piscine intérieure, fitness, conciergerie 24h/24
-Restaurant: Le Diamant (2 étoiles Michelin)"""
+        return load_database("database/hotels/paris.txt")
     elif "azur" in nom_lower or "nice" in nom_lower or "méditerranée" in nom_lower:
-        return """Hôtel Côte d'Azur Prestige - Nice
-Adresse: 42 Promenade des Anglais, 06000 Nice
-5 étoiles - Plage privée, vue Baie des Anges
-Chambres: Villa Privée (2500€), Suite Méditerranée (800€), Chambre Supérieure (380€), Chambre Confort (220€)
-Équipements: Plage privée, 2 piscines, spa 1500m², tennis, héliport
-Restaurants: La Méditerranée (fruits de mer), Le Jardin (cuisine légère)"""
+        return load_database("database/hotels/nice.txt")
     elif "mont" in nom_lower or "blanc" in nom_lower or "chamonix" in nom_lower:
-        return """Hôtel Mont-Blanc Excellence - Chamonix
-Adresse: 123 Route du Mont-Blanc, 74400 Chamonix
-5 étoiles - Au pied du Mont-Blanc
-Chambres: Chalet Privé (1800€), Suite Alpin (550€), Chambre Montagne (320€), Chambre Cosy (190€)
-Équipements: Ski-room chauffé, navette ski gratuite, spa alpin, sauna, hammam
-Restaurant: L'Altitude (cuisine savoyarde gastronomique)"""
-    return "Hôtel non trouvé. Nos hôtels disponibles sont: Royal Palace (Paris), Côte d'Azur Prestige (Nice), Mont-Blanc Excellence (Chamonix)."
+        return load_database("database/hotels/chamonix.txt")
+    return "Hôtel non trouvé."
 
 
 @function_tool
-def lister_chambres_disponibles(hotel: str) -> str:
-    """Liste les chambres disponibles dans un hôtel."""
-    hotel_lower = hotel.lower()
-    if "royal" in hotel_lower or "paris" in hotel_lower:
-        return """Chambres disponibles au Royal Palace:
-- Suite Présidentielle: 1200€/nuit, 2 disponibles, capacité 4 personnes, vue Tour Eiffel
-- Suite Junior: 650€/nuit, 5 disponibles, capacité 2 personnes, vue jardin
-- Chambre Deluxe: 450€/nuit, 8 disponibles, capacité 2 personnes, vue ville
-- Chambre Standard: 280€/nuit, 12 disponibles, capacité 2 personnes"""
-    elif "azur" in hotel_lower or "nice" in hotel_lower:
-        return """Chambres disponibles au Côte d'Azur Prestige:
-- Villa Privée avec piscine: 2500€/nuit, 1 disponible, capacité 6 personnes
-- Suite Méditerranée: 800€/nuit, 3 disponibles, capacité 3 personnes, vue mer
-- Chambre Supérieure: 380€/nuit, 10 disponibles, capacité 2 personnes, vue mer
-- Chambre Confort: 220€/nuit, 15 disponibles, capacité 2 personnes, vue jardin"""
-    elif "mont" in hotel_lower or "chamonix" in hotel_lower:
-        return """Chambres disponibles au Mont-Blanc Excellence:
-- Chalet Privé: 1800€/nuit, 2 disponibles, capacité 8 personnes, jacuzzi privé
-- Suite Alpin: 550€/nuit, 4 disponibles, capacité 4 personnes, vue Mont-Blanc
-- Chambre Montagne: 320€/nuit, 6 disponibles, capacité 2 personnes
-- Chambre Cosy: 190€/nuit, 8 disponibles, capacité 2 personnes"""
-    return "Hôtel non reconnu. Veuillez choisir parmi: Royal Palace (Paris), Côte d'Azur Prestige (Nice), Mont-Blanc Excellence (Chamonix)."
-
+def reserver_hotel(nom_hotel: str, nom_client: str, date_arrivee: str, date_depart: str, nombre_personnes: int) -> str:
+    """Réserve un hôtel.
+        Prend en entrée le nom de l'hôtel, le nom du client, la date d'arrivée, la date de départ et le nombre de personnes."""
+    csv_file = "database/reservations.csv"
+    file_exists = os.path.exists(csv_file)
+    
+    with open(csv_file, "a", newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["nom_hotel", "nom_client", "date_arrivee", "date_depart", "nombre_personnes"])
+        writer.writerow([nom_hotel, nom_client, date_arrivee, date_depart, nombre_personnes])
+    
+    return f"Hôtel {nom_hotel} réservé du {date_arrivee} au {date_depart} pour {nombre_personnes} personnes."
 
 @function_tool
-def obtenir_activites(hotel: str) -> str:
-    """Obtient la liste des activités proposées par un hôtel."""
-    hotel_lower = hotel.lower()
-    if "royal" in hotel_lower or "paris" in hotel_lower:
-        return """Activités au Royal Palace Paris:
-- Cours de cuisine avec le Chef: Samedi 10h, 150€/personne
-- Dégustation de vins: Vendredi 18h, 90€/personne
-- Visite privée du Louvre: Sur demande, 250€/personne
-- Croisière Seine: Tous les jours 20h, 120€/personne"""
-    elif "azur" in hotel_lower or "nice" in hotel_lower:
-        return """Activités au Côte d'Azur Prestige:
-- Plongée sous-marine: Tous les jours 9h et 14h, 80€/personne
-- Excursion en yacht: Sur réservation, 500€ (4 personnes max)
-- Cours de yoga sur la plage: Tous les matins 7h30, gratuit pour les résidents
-- Visite de Monaco: Mercredi et Samedi, 150€/personne
-- Dégustation huile d'olive: Jeudi 16h, 60€/personne"""
-    elif "mont" in hotel_lower or "chamonix" in hotel_lower:
-        return """Activités au Mont-Blanc Excellence:
-- Ski avec moniteur privé: Tous les jours, 200€/demi-journée
-- Randonnée raquettes: Mardi et Jeudi 9h, 70€/personne
-- Spa privatif en couple: Sur réservation, 180€/2h
-- Vol en hélicoptère Mont-Blanc: Sur demande, 350€/personne
-- Soirée fondue traditionnelle: Vendredi 20h, inclus pour les résidents"""
-    return "Hôtel non reconnu."
-
+def annuler_reservation(nom_hotel: str, nom_client: str, date_arrivee: str, date_depart: str, nombre_personnes: int) -> str:
+    """Annule une réservation.
+        Prend en entrée le nom de l'hôtel, le nom du client, la date d'arrivée, la date de départ et le nombre de personnes."""
+    csv_file = "database/reservations.csv"
+    file_exists = os.path.exists(csv_file)
+    with open(csv_file, "a", newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["nom_hotel", "nom_client", "date_arrivee", "date_depart", "nombre_personnes"])
+        writer.writerow([nom_hotel, nom_client, date_arrivee, date_depart, nombre_personnes])
+    return f"Réservation de l'hôtel {nom_hotel} pour {nom_client} du {date_arrivee} au {date_depart} pour {nombre_personnes} personnes annulée."
 
 @function_tool
-def obtenir_politique_annulation() -> str:
-    """Obtient la politique d'annulation des hôtels."""
-    return """Politique d'annulation:
-- Annulation gratuite jusqu'à 48h avant l'arrivée
-- 50% de frais entre 48h et 24h avant
-- 100% de frais moins de 24h avant
+def obtenir_informations_reservation(nom_client: str) -> str:
+    """Obtient les informations d'une réservation.
+        Prend en entrée le nom du client."""
+    csv_file = "database/reservations.csv"
+    file_exists = os.path.exists(csv_file)
+    with open(csv_file, "r", newline='', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if row[1] == nom_client:
+                return f"Réservation de l'hôtel {row[0]} pour {row[1]} du {row[2]} au {row[3]} pour {row[4]} personnes."
 
-Check-in: 15h00
-Check-out: 11h00 (late check-out possible jusqu'à 14h moyennant supplément de 50€)
+@function_tool
+def terminer_conversation() -> str:
+    """Termine la conversation."""
+    return "Conversation terminée"  
 
-Animaux: Acceptés dans certaines chambres (supplément 30€/nuit)
-"""
+
+
 
 
 # Instructions système pour l'agent
 SYSTEM_INSTRUCTIONS = f"""Tu es Samanta, une assistante vocale chaleureuse et professionnelle spécialisée dans les réservations d'hôtels de luxe SBM.
 
 Ton rôle:
-- Répondre aux questions des clients sur les hôtels, chambres, restaurants et activités
-- Aider à la réservation et fournir des recommandations personnalisées
-- Être concise mais informative (tes réponses seront lues à voix haute)
-- Toujours répondre en français avec un ton élégant et accueillant
+- Répondre aux questions des clients sur les hôtels, chambres, restaurants et activités.
+- Aider à la réservation et fournir des recommandations personnalisées.
+- Si le client veut connaître des informations sur un hôtel, utilise la fonction 'rechercher_hotel'.
+- Si le client veut réserver un hôtel, utilise la fonction 'reserver_hotel'. Demande lui les informations nécessaires.
+- Si le client veut annuler une réservation, utilise la fonction 'annuler_reservation'.
+- Si le client veut obtenir les informations d'une réservation, utilise la fonction 'obtenir_informations_reservation'.
+- Si le client veut terminer la conversation, dis à l'oral 'Au revoir et merci pour votre visite!' puis utilise la fonction 'terminer_conversation'.
+- Être concise mais informative (tes réponses seront lues à voix haute).
+- Toujours répondre en français avec un ton élégant et accueillant.
 
-Nos trois hôtels:
+Informations complémentaires:
+{load_database("database/infos_generales.txt")}
+
+Les hôtels de la société SBM:
 1. Hôtel Royal Palace - Paris (5 étoiles, vue Tour Eiffel)
-2. Hôtel Côte d'Azur Prestige - Nice (5 étoiles, plage privée)
+2. Hôtel Côte d'Azur Prestige - Nice (4 étoiles, plage privée)
 3. Hôtel Mont-Blanc Excellence - Chamonix (5 étoiles, ski et montagne)
 
 Instructions importantes:
-- Réponds de manière naturelle et conversationnelle
-- Évite les listes à puces, préfère des phrases fluides
-- Si tu ne trouves pas l'information demandée, utilise les outils disponibles ou dis poliment que tu ne disposes pas de ces informations
-- Garde tes réponses relativement courtes (2-4 phrases) sauf si plus de détails sont demandés
-- Commence par te présenter chaleureusement lors du premier échange
+- Commence par te présenter chaleureusement lors du premier échange.
 - Utilise le vouvoiement, soit poli. 
+- Réponds de manière naturelle et conversationnelle.
+- Évite les listes à puces, préfère des phrases fluides.
+- Si tu ne trouves pas l'information demandée, ne les invente pas et dis que tu ne disposes pas de ces informations.
+- Garde tes réponses relativement courtes (2-4 phrases) sauf si plus de détails sont demandés.
+"""
 
-Informations complémentaires:
-{DATABASE}"""
+
+phrase_accueil = "Bonjour et bienvenue! Je suis Samanta, votre assistante personnelle pour les réservations d'hôtels SBM. Comment puis-je vous aider aujourd'hui?"
+
 
 
 # Configuration de l'agent
 agent = RealtimeAgent(
     name="Samanta",
     instructions=SYSTEM_INSTRUCTIONS,
-    tools=[rechercher_hotel, lister_chambres_disponibles, obtenir_activites, obtenir_politique_annulation],
+    tools=[rechercher_hotel, reserver_hotel, annuler_reservation, obtenir_informations_reservation, terminer_conversation],
 )
+
 
 
 class SamantaRealtimeAgent:
@@ -188,6 +165,7 @@ class SamantaRealtimeAgent:
         self.audio_stream: sd.InputStream | None = None
         self.audio_player: sd.OutputStream | None = None
         self.recording = False
+        self.should_exit = False
         
         # Tracker de lecture audio
         self.playback_tracker = RealtimePlaybackTracker()
@@ -209,7 +187,7 @@ class SamantaRealtimeAgent:
         
         # Protection contre auto-interruption au démarrage
         self.warmup_complete = False
-        self.warmup_chunks_needed = 200  # 20~0.8 secondes de warmup
+        self.warmup_chunks_needed = 200  # 20 chunks = 0.8 secondes de warmup
 
     def _output_callback(self, outdata, frames: int, time, status) -> None:
         """Callback pour la sortie audio."""
@@ -305,7 +283,7 @@ class SamantaRealtimeAgent:
     async def run(self) -> None:
         """Lance l'agent Samanta."""
         print("=" * 60)
-        print("🏨 Samanta v3 - Agent Vocal Temps Réel")
+        print("🏨 Samanta v3 - Agent Vocal SBM")
         print("=" * 60)
         print("\nCommande Ctrl+C pour quitter")
         print("Connexion en cours...")
@@ -339,7 +317,7 @@ class SamantaRealtimeAgent:
                 print("✅ Connecté!")
                 
                 # Démarrer la conversation avec un message d'accueil
-                await session.send_message("Bonjour, présente-toi brièvement.")
+                await session.send_message(f"Enonce la phrase d'accueil: {phrase_accueil}")
 
                 await self.start_audio_recording()
                 print("\nDébut de la conversation")
@@ -402,7 +380,8 @@ class SamantaRealtimeAgent:
                 await asyncio.sleep(0)
 
         except Exception as e:
-            print(f"Erreur capture audio: {e}")
+            # print(f"Erreur capture audio: {e}")
+            print("")
         finally:
             if self.audio_stream and self.audio_stream.active:
                 self.audio_stream.stop()
@@ -414,13 +393,20 @@ class SamantaRealtimeAgent:
         try:
             if event.type == "agent_start":
                 print("💬 Samanta parle")
-                # print("agent_start")
             elif event.type == "agent_end":
-                pass  # Silencieux
+                # Si nous devons quitter après que l'agent ait fini de parler
+                if self.should_exit:
+                    print("\n\n👋 Conversation terminée par l'utilisateur")
+                    self.recording = False
+                    if self.session:
+                        await self.session.close()
             elif event.type == "tool_start":
-                print(f"🔧 Recherche: {event.tool.name}")
+                print(f"🔧 Outil utilisé: {event.tool.name}")
             elif event.type == "tool_end":
-                print(f"✅ Résultat trouvé")
+                print(f"✅ Action effectuée")
+                # Vérifier si c'est l'outil de fin de conversation
+                if event.tool.name == "terminer_conversation":
+                    self.should_exit = True
             elif event.type == "audio_end":
                 pass  # Silencieux
             elif event.type == "audio":
@@ -432,9 +418,9 @@ class SamantaRealtimeAgent:
                 self.interrupt_event.set()
             elif event.type == "error":
                 print(f"❌ Erreur: {event.error}")
-            elif event.type == "raw_model_event":
-                # Afficher les transcriptions
-                data = event.data
+            # elif event.type == "raw_model_event":
+            #     # Afficher les transcriptions
+            #     data = event.data
                 # if data.type != "raw_server_event" and data.type != "transcript_delta" and data.type != "audio":
                 #     print(f"type: {data.type}")
                 # if hasattr(data, "type"):
@@ -444,13 +430,6 @@ class SamantaRealtimeAgent:
                 #         print(f"\n👤 Vous: {data.transcript}")
         except Exception as e:
             print(f"Erreur événement: {str(e)[:100]}")
-
-    def _compute_rms(self, samples: np.ndarray[Any, np.dtype[Any]]) -> float:
-        """Calcule l'énergie RMS des échantillons."""
-        if samples.size == 0:
-            return 0.0
-        x = samples.astype(np.float32) / 32768.0
-        return float(np.sqrt(np.mean(x * x)))
 
     def _update_playback_rms(self, samples: np.ndarray[Any, np.dtype[Any]]) -> None:
         """Met à jour l'estimation d'énergie de lecture."""
@@ -463,6 +442,14 @@ class SamantaRealtimeAgent:
             if self.warmup_chunks_needed == 0:
                 self.warmup_complete = True
                 # print("🔓 Détection d'interruption activée")
+                
+    def _compute_rms(self, samples: np.ndarray[Any, np.dtype[Any]]) -> float:
+        """Calcule l'énergie RMS des échantillons."""
+        if samples.size == 0:
+            return 0.0
+        x = samples.astype(np.float32) / 32768.0
+        return float(np.sqrt(np.mean(x * x)))
+
 
 
 if __name__ == "__main__":
