@@ -1,0 +1,475 @@
+"""
+Samanta v3 - Agent vocal temps réel pour réservations d'hôtels de luxe
+Utilise l'API Realtime d'OpenAI pour une interaction vocale à faible latence.
+"""
+
+import asyncio
+import os
+import queue
+import sys
+import threading
+from typing import Any
+
+import numpy as np
+import sounddevice as sd
+from dotenv import load_dotenv
+
+from agents import function_tool
+from agents.realtime import (
+    RealtimeAgent,
+    RealtimePlaybackTracker,
+    RealtimeRunner,
+    RealtimeSession,
+    RealtimeSessionEvent,
+)
+from agents.realtime.model import RealtimeModelConfig
+
+load_dotenv()
+
+# Audio configuration
+CHUNK_LENGTH_S = 0.04  # 40ms
+SAMPLE_RATE = 24000
+FORMAT = np.int16
+CHANNELS = 1
+ENERGY_THRESHOLD = 0.05  # Seuil RMS pour détection de parole (augmenté pour éviter faux positifs)
+PREBUFFER_CHUNKS = 3
+FADE_OUT_MS = 12
+PLAYBACK_ECHO_MARGIN = 0.01  # Marge supplémentaire pour filtrer l'écho
+DATABASE_PATH = "database_hotel.txt"
+
+
+def load_database() -> str:
+    """Charge la base de données des hôtels."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    full_path = os.path.join(script_dir, DATABASE_PATH)
+    with open(full_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+# Charger la base de données au démarrage
+DATABASE = load_database()
+
+
+# Définition des outils pour l'agent
+@function_tool
+def rechercher_hotel(nom_hotel: str) -> str:
+    """Recherche les informations sur un hôtel spécifique."""
+    nom_lower = nom_hotel.lower()
+    if "royal" in nom_lower or "palace" in nom_lower or "paris" in nom_lower:
+        return """Hôtel Royal Palace - Paris
+Adresse: 15 Avenue des Champs-Élysées, 75008 Paris
+5 étoiles - Vue sur la Tour Eiffel
+Chambres: Suite Présidentielle (1200€), Suite Junior (650€), Chambre Deluxe (450€), Chambre Standard (280€)
+Équipements: Spa, piscine intérieure, fitness, conciergerie 24h/24
+Restaurant: Le Diamant (2 étoiles Michelin)"""
+    elif "azur" in nom_lower or "nice" in nom_lower or "méditerranée" in nom_lower:
+        return """Hôtel Côte d'Azur Prestige - Nice
+Adresse: 42 Promenade des Anglais, 06000 Nice
+5 étoiles - Plage privée, vue Baie des Anges
+Chambres: Villa Privée (2500€), Suite Méditerranée (800€), Chambre Supérieure (380€), Chambre Confort (220€)
+Équipements: Plage privée, 2 piscines, spa 1500m², tennis, héliport
+Restaurants: La Méditerranée (fruits de mer), Le Jardin (cuisine légère)"""
+    elif "mont" in nom_lower or "blanc" in nom_lower or "chamonix" in nom_lower:
+        return """Hôtel Mont-Blanc Excellence - Chamonix
+Adresse: 123 Route du Mont-Blanc, 74400 Chamonix
+5 étoiles - Au pied du Mont-Blanc
+Chambres: Chalet Privé (1800€), Suite Alpin (550€), Chambre Montagne (320€), Chambre Cosy (190€)
+Équipements: Ski-room chauffé, navette ski gratuite, spa alpin, sauna, hammam
+Restaurant: L'Altitude (cuisine savoyarde gastronomique)"""
+    return "Hôtel non trouvé. Nos hôtels disponibles sont: Royal Palace (Paris), Côte d'Azur Prestige (Nice), Mont-Blanc Excellence (Chamonix)."
+
+
+@function_tool
+def lister_chambres_disponibles(hotel: str) -> str:
+    """Liste les chambres disponibles dans un hôtel."""
+    hotel_lower = hotel.lower()
+    if "royal" in hotel_lower or "paris" in hotel_lower:
+        return """Chambres disponibles au Royal Palace:
+- Suite Présidentielle: 1200€/nuit, 2 disponibles, capacité 4 personnes, vue Tour Eiffel
+- Suite Junior: 650€/nuit, 5 disponibles, capacité 2 personnes, vue jardin
+- Chambre Deluxe: 450€/nuit, 8 disponibles, capacité 2 personnes, vue ville
+- Chambre Standard: 280€/nuit, 12 disponibles, capacité 2 personnes"""
+    elif "azur" in hotel_lower or "nice" in hotel_lower:
+        return """Chambres disponibles au Côte d'Azur Prestige:
+- Villa Privée avec piscine: 2500€/nuit, 1 disponible, capacité 6 personnes
+- Suite Méditerranée: 800€/nuit, 3 disponibles, capacité 3 personnes, vue mer
+- Chambre Supérieure: 380€/nuit, 10 disponibles, capacité 2 personnes, vue mer
+- Chambre Confort: 220€/nuit, 15 disponibles, capacité 2 personnes, vue jardin"""
+    elif "mont" in hotel_lower or "chamonix" in hotel_lower:
+        return """Chambres disponibles au Mont-Blanc Excellence:
+- Chalet Privé: 1800€/nuit, 2 disponibles, capacité 8 personnes, jacuzzi privé
+- Suite Alpin: 550€/nuit, 4 disponibles, capacité 4 personnes, vue Mont-Blanc
+- Chambre Montagne: 320€/nuit, 6 disponibles, capacité 2 personnes
+- Chambre Cosy: 190€/nuit, 8 disponibles, capacité 2 personnes"""
+    return "Hôtel non reconnu. Veuillez choisir parmi: Royal Palace (Paris), Côte d'Azur Prestige (Nice), Mont-Blanc Excellence (Chamonix)."
+
+
+@function_tool
+def obtenir_activites(hotel: str) -> str:
+    """Obtient la liste des activités proposées par un hôtel."""
+    hotel_lower = hotel.lower()
+    if "royal" in hotel_lower or "paris" in hotel_lower:
+        return """Activités au Royal Palace Paris:
+- Cours de cuisine avec le Chef: Samedi 10h, 150€/personne
+- Dégustation de vins: Vendredi 18h, 90€/personne
+- Visite privée du Louvre: Sur demande, 250€/personne
+- Croisière Seine: Tous les jours 20h, 120€/personne"""
+    elif "azur" in hotel_lower or "nice" in hotel_lower:
+        return """Activités au Côte d'Azur Prestige:
+- Plongée sous-marine: Tous les jours 9h et 14h, 80€/personne
+- Excursion en yacht: Sur réservation, 500€ (4 personnes max)
+- Cours de yoga sur la plage: Tous les matins 7h30, gratuit pour les résidents
+- Visite de Monaco: Mercredi et Samedi, 150€/personne
+- Dégustation huile d'olive: Jeudi 16h, 60€/personne"""
+    elif "mont" in hotel_lower or "chamonix" in hotel_lower:
+        return """Activités au Mont-Blanc Excellence:
+- Ski avec moniteur privé: Tous les jours, 200€/demi-journée
+- Randonnée raquettes: Mardi et Jeudi 9h, 70€/personne
+- Spa privatif en couple: Sur réservation, 180€/2h
+- Vol en hélicoptère Mont-Blanc: Sur demande, 350€/personne
+- Soirée fondue traditionnelle: Vendredi 20h, inclus pour les résidents"""
+    return "Hôtel non reconnu."
+
+
+@function_tool
+def obtenir_politique_annulation() -> str:
+    """Obtient la politique d'annulation des hôtels."""
+    return """Politique d'annulation:
+- Annulation gratuite jusqu'à 48h avant l'arrivée
+- 50% de frais entre 48h et 24h avant
+- 100% de frais moins de 24h avant
+
+Check-in: 15h00
+Check-out: 11h00 (late check-out possible jusqu'à 14h moyennant supplément de 50€)
+
+Animaux: Acceptés dans certaines chambres (supplément 30€/nuit)
+"""
+
+
+# Instructions système pour l'agent
+SYSTEM_INSTRUCTIONS = f"""Tu es Samanta, une assistante vocale chaleureuse et professionnelle spécialisée dans les réservations d'hôtels de luxe SBM.
+
+Ton rôle:
+- Répondre aux questions des clients sur les hôtels, chambres, restaurants et activités
+- Aider à la réservation et fournir des recommandations personnalisées
+- Être concise mais informative (tes réponses seront lues à voix haute)
+- Toujours répondre en français avec un ton élégant et accueillant
+
+Nos trois hôtels:
+1. Hôtel Royal Palace - Paris (5 étoiles, vue Tour Eiffel)
+2. Hôtel Côte d'Azur Prestige - Nice (5 étoiles, plage privée)
+3. Hôtel Mont-Blanc Excellence - Chamonix (5 étoiles, ski et montagne)
+
+Instructions importantes:
+- Réponds de manière naturelle et conversationnelle
+- Évite les listes à puces, préfère des phrases fluides
+- Si tu ne trouves pas l'information demandée, utilise les outils disponibles ou dis poliment que tu ne disposes pas de ces informations
+- Garde tes réponses relativement courtes (2-4 phrases) sauf si plus de détails sont demandés
+- Commence par te présenter chaleureusement lors du premier échange
+- Utilise le vouvoiement, soit poli. 
+
+Informations complémentaires:
+{DATABASE}"""
+
+
+# Configuration de l'agent
+agent = RealtimeAgent(
+    name="Samanta",
+    instructions=SYSTEM_INSTRUCTIONS,
+    tools=[rechercher_hotel, lister_chambres_disponibles, obtenir_activites, obtenir_politique_annulation],
+)
+
+
+class SamantaRealtimeAgent:
+    """Agent vocal temps réel pour les réservations d'hôtels."""
+    
+    def __init__(self) -> None:
+        self.session: RealtimeSession | None = None
+        self.audio_stream: sd.InputStream | None = None
+        self.audio_player: sd.OutputStream | None = None
+        self.recording = False
+        
+        # Tracker de lecture audio
+        self.playback_tracker = RealtimePlaybackTracker()
+        
+        # File d'attente audio
+        self.output_queue: queue.Queue[Any] = queue.Queue(maxsize=0)
+        self.interrupt_event = threading.Event()
+        self.current_audio_chunk: tuple[np.ndarray[Any, np.dtype[Any]], str, int] | None = None
+        self.chunk_position = 0
+        
+        # Gestion du jitter buffer et fade-out
+        self.prebuffering = True
+        self.prebuffer_target_chunks = PREBUFFER_CHUNKS
+        self.fading = False
+        self.fade_total_samples = 0
+        self.fade_done_samples = 0
+        self.fade_samples = int(SAMPLE_RATE * (FADE_OUT_MS / 1000.0))
+        self.playback_rms = 0.0
+        
+        # Protection contre auto-interruption au démarrage
+        self.warmup_complete = False
+        self.warmup_chunks_needed = 200  # 20~0.8 secondes de warmup
+
+    def _output_callback(self, outdata, frames: int, time, status) -> None:
+        """Callback pour la sortie audio."""
+        if status:
+            print(f"Status sortie audio: {status}")
+
+        # Gestion de l'interruption avec fade-out
+        if self.interrupt_event.is_set():
+            outdata.fill(0)
+            if self.current_audio_chunk is None:
+                while not self.output_queue.empty():
+                    try:
+                        self.output_queue.get_nowait()
+                    except queue.Empty:
+                        break
+                self.prebuffering = True
+                self.interrupt_event.clear()
+                return
+
+            if not self.fading:
+                self.fading = True
+                self.fade_done_samples = 0
+                remaining_in_chunk = len(self.current_audio_chunk[0]) - self.chunk_position
+                self.fade_total_samples = min(self.fade_samples, max(0, remaining_in_chunk))
+
+            samples, item_id, content_index = self.current_audio_chunk
+            samples_filled = 0
+            while samples_filled < len(outdata) and self.fade_done_samples < self.fade_total_samples:
+                remaining_output = len(outdata) - samples_filled
+                remaining_fade = self.fade_total_samples - self.fade_done_samples
+                n = min(remaining_output, remaining_fade)
+                src = samples[self.chunk_position:self.chunk_position + n].astype(np.float32)
+                idx = np.arange(self.fade_done_samples, self.fade_done_samples + n, dtype=np.float32)
+                gain = 1.0 - (idx / float(self.fade_total_samples))
+                ramped = np.clip(src * gain, -32768.0, 32767.0).astype(np.int16)
+                outdata[samples_filled:samples_filled + n, 0] = ramped
+                self._update_playback_rms(ramped)
+                try:
+                    self.playback_tracker.on_play_bytes(item_id=item_id, item_content_index=content_index, bytes=ramped.tobytes())
+                except Exception:
+                    pass
+                samples_filled += n
+                self.chunk_position += n
+                self.fade_done_samples += n
+
+            if self.fade_done_samples >= self.fade_total_samples:
+                self.current_audio_chunk = None
+                self.chunk_position = 0
+                while not self.output_queue.empty():
+                    try:
+                        self.output_queue.get_nowait()
+                    except queue.Empty:
+                        break
+                self.fading = False
+                self.prebuffering = True
+                self.interrupt_event.clear()
+            return
+
+        # Remplissage normal du buffer audio
+        outdata.fill(0)
+        samples_filled = 0
+        while samples_filled < len(outdata):
+            if self.current_audio_chunk is None:
+                try:
+                    if self.prebuffering and self.output_queue.qsize() < self.prebuffer_target_chunks:
+                        break
+                    self.prebuffering = False
+                    self.current_audio_chunk = self.output_queue.get_nowait()
+                    self.chunk_position = 0
+                except queue.Empty:
+                    break
+
+            remaining_output = len(outdata) - samples_filled
+            samples, item_id, content_index = self.current_audio_chunk
+            remaining_chunk = len(samples) - self.chunk_position
+            samples_to_copy = min(remaining_output, remaining_chunk)
+
+            if samples_to_copy > 0:
+                chunk_data = samples[self.chunk_position:self.chunk_position + samples_to_copy]
+                outdata[samples_filled:samples_filled + samples_to_copy, 0] = chunk_data
+                self._update_playback_rms(chunk_data)
+                samples_filled += samples_to_copy
+                self.chunk_position += samples_to_copy
+                try:
+                    self.playback_tracker.on_play_bytes(item_id=item_id, item_content_index=content_index, bytes=chunk_data.tobytes())
+                except Exception:
+                    pass
+
+            if self.chunk_position >= len(samples):
+                self.current_audio_chunk = None
+                self.chunk_position = 0
+
+    async def run(self) -> None:
+        """Lance l'agent Samanta."""
+        print("=" * 60)
+        print("🏨 Samanta v3 - Agent Vocal Temps Réel")
+        print("=" * 60)
+        print("\nCommande Ctrl+C pour quitter")
+        print("Connexion en cours...")
+
+        chunk_size = int(SAMPLE_RATE * CHUNK_LENGTH_S)
+        self.audio_player = sd.OutputStream(
+            channels=CHANNELS,
+            samplerate=SAMPLE_RATE,
+            dtype=FORMAT,
+            callback=self._output_callback,
+            blocksize=chunk_size,
+        )
+        self.audio_player.start()
+
+        try:
+            runner = RealtimeRunner(agent)
+            model_config: RealtimeModelConfig = {
+                "playback_tracker": self.playback_tracker,
+                "initial_model_settings": {
+                    "turn_detection": {
+                        "type": "semantic_vad",
+                        "interrupt_response": True,
+                        "create_response": True,
+                    },
+                    "voice": "marin",
+                },
+            }
+
+            async with await runner.run(model_config=model_config) as session:
+                self.session = session
+                print("✅ Connecté!")
+                
+                # Démarrer la conversation avec un message d'accueil
+                await session.send_message("Bonjour, présente-toi brièvement.")
+
+                await self.start_audio_recording()
+                print("\nDébut de la conversation")
+
+                async for event in session:
+                    await self._on_event(event)
+
+        finally:
+            if self.audio_player and self.audio_player.active:
+                self.audio_player.stop()
+            if self.audio_player:
+                self.audio_player.close()
+            print("\n👋 Session terminée")
+
+    async def start_audio_recording(self) -> None:
+        """Démarre l'enregistrement audio."""
+        self.audio_stream = sd.InputStream(
+            channels=CHANNELS,
+            samplerate=SAMPLE_RATE,
+            dtype=FORMAT,
+        )
+        self.audio_stream.start()
+        self.recording = True
+        asyncio.create_task(self.capture_audio())
+
+    async def capture_audio(self) -> None:
+        """Capture l'audio du microphone et l'envoie à la session."""
+        if not self.audio_stream or not self.session:
+            return
+
+        read_size = int(SAMPLE_RATE * CHUNK_LENGTH_S)
+
+        try:
+            while self.recording:
+                if self.audio_stream.read_available < read_size:
+                    await asyncio.sleep(0.01)
+                    continue
+
+                data, _ = self.audio_stream.read(read_size)
+                audio_bytes = data.tobytes()
+
+                # Détection intelligente de parole pendant la lecture
+                assistant_playing = self.current_audio_chunk is not None or not self.output_queue.empty()
+                
+                # Pendant le warmup, ne pas détecter d'interruptions
+                if assistant_playing and not self.warmup_complete:
+                    # Pendant le warmup, ne rien envoyer pour éviter auto-interruption
+                    pass
+                elif assistant_playing:
+                    samples = data.reshape(-1)
+                    mic_rms = self._compute_rms(samples)
+                    # Seuil plus strict: doit être significativement plus fort que l'écho
+                    playback_gate = max(ENERGY_THRESHOLD, self.playback_rms * 1.2 + PLAYBACK_ECHO_MARGIN)
+                    if mic_rms >= playback_gate:
+                        self.interrupt_event.set()
+                        await self.session.send_audio(audio_bytes)
+                else:
+                    await self.session.send_audio(audio_bytes)
+
+                await asyncio.sleep(0)
+
+        except Exception as e:
+            print(f"Erreur capture audio: {e}")
+        finally:
+            if self.audio_stream and self.audio_stream.active:
+                self.audio_stream.stop()
+            if self.audio_stream:
+                self.audio_stream.close()
+
+    async def _on_event(self, event: RealtimeSessionEvent) -> None:
+        """Gère les événements de la session."""
+        try:
+            if event.type == "agent_start":
+                print("💬 Samanta parle")
+                # print("agent_start")
+            elif event.type == "agent_end":
+                pass  # Silencieux
+            elif event.type == "tool_start":
+                print(f"🔧 Recherche: {event.tool.name}")
+            elif event.type == "tool_end":
+                print(f"✅ Résultat trouvé")
+            elif event.type == "audio_end":
+                pass  # Silencieux
+            elif event.type == "audio":
+                np_audio = np.frombuffer(event.audio.data, dtype=np.int16)
+                self.output_queue.put_nowait((np_audio, event.item_id, event.content_index))
+            elif event.type == "audio_interrupted":
+                print("🎤 Voix détectée")
+                self.prebuffering = True
+                self.interrupt_event.set()
+            elif event.type == "error":
+                print(f"❌ Erreur: {event.error}")
+            elif event.type == "raw_model_event":
+                # Afficher les transcriptions
+                data = event.data
+                # if data.type != "raw_server_event" and data.type != "transcript_delta" and data.type != "audio":
+                #     print(f"type: {data.type}")
+                # if hasattr(data, "type"):
+                #     if data.type == "turn_started":
+                #         print(f"\n💬 Samanta: {data.transcript}")
+                #     elif data.type == "conversation.item.input_audio_transcription.completed":
+                #         print(f"\n👤 Vous: {data.transcript}")
+        except Exception as e:
+            print(f"Erreur événement: {str(e)[:100]}")
+
+    def _compute_rms(self, samples: np.ndarray[Any, np.dtype[Any]]) -> float:
+        """Calcule l'énergie RMS des échantillons."""
+        if samples.size == 0:
+            return 0.0
+        x = samples.astype(np.float32) / 32768.0
+        return float(np.sqrt(np.mean(x * x)))
+
+    def _update_playback_rms(self, samples: np.ndarray[Any, np.dtype[Any]]) -> None:
+        """Met à jour l'estimation d'énergie de lecture."""
+        sample_rms = self._compute_rms(samples)
+        self.playback_rms = 0.9 * self.playback_rms + 0.1 * sample_rms
+        
+        # Marquer le warmup comme terminé après avoir joué suffisamment de chunks
+        if not self.warmup_complete and self.warmup_chunks_needed > 0:
+            self.warmup_chunks_needed -= 1
+            if self.warmup_chunks_needed == 0:
+                self.warmup_complete = True
+                # print("🔓 Détection d'interruption activée")
+
+
+if __name__ == "__main__":
+    samanta = SamantaRealtimeAgent()
+    try:
+        asyncio.run(samanta.run())
+    except KeyboardInterrupt:
+        print("\n\n👋 Au revoir!")
+        sys.exit(0)
+
