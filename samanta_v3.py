@@ -1,7 +1,6 @@
 """
 Samanta v3 - Agent vocal temps réel pour réservations d'hôtels de luxe
 Utilise l'API Realtime d'OpenAI pour une interaction vocale à faible latence.
-Written by Claude, works well
 """
 
 import asyncio
@@ -40,6 +39,11 @@ FADE_OUT_MS = 12
 PLAYBACK_ECHO_MARGIN = 0.01  # Marge supplémentaire pour filtrer l'écho
 
 
+# data_path = "database/french"
+data_path = "database/english"
+
+
+
 def load_database(path:str) -> str:
     """Charge la base de données d'un hôtel."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -57,11 +61,11 @@ def rechercher_hotel(nom_hotel: str) -> str:
         Prend en entrée le nom de l'hôtel."""
     nom_lower = nom_hotel.lower()
     if "royal" in nom_lower or "palace" in nom_lower or "paris" in nom_lower:
-        return load_database("database/hotels/paris.txt")
+        return load_database(f"{data_path}/hotels/paris.txt")
     elif "azur" in nom_lower or "nice" in nom_lower or "méditerranée" in nom_lower:
-        return load_database("database/hotels/nice.txt")
+        return load_database(f"{data_path}/hotels/nice.txt")
     elif "mont" in nom_lower or "blanc" in nom_lower or "chamonix" in nom_lower:
-        return load_database("database/hotels/chamonix.txt")
+        return load_database(f"{data_path}/hotels/chamonix.txt")
     return "Hôtel non trouvé."
 
 
@@ -69,7 +73,7 @@ def rechercher_hotel(nom_hotel: str) -> str:
 def reserver_hotel(nom_hotel: str, nom_client: str, date_arrivee: str, date_depart: str, nombre_personnes: int) -> str:
     """Réserve un hôtel.
         Prend en entrée le nom de l'hôtel, le nom du client, la date d'arrivée, la date de départ et le nombre de personnes."""
-    csv_file = "database/reservations.csv"
+    csv_file = f"{data_path}/reservations.csv"
     file_exists = os.path.exists(csv_file)
     
     with open(csv_file, "a", newline='', encoding='utf-8') as f:
@@ -84,7 +88,7 @@ def reserver_hotel(nom_hotel: str, nom_client: str, date_arrivee: str, date_depa
 def annuler_reservation(nom_hotel: str, nom_client: str, date_arrivee: str, date_depart: str, nombre_personnes: int) -> str:
     """Annule une réservation.
         Prend en entrée le nom de l'hôtel, le nom du client, la date d'arrivée, la date de départ et le nombre de personnes."""
-    csv_file = "database/reservations.csv"
+    csv_file = f"{data_path}/reservations.csv"
     if not os.path.exists(csv_file):
         return "Aucune réservation trouvée."
     
@@ -121,7 +125,7 @@ def annuler_reservation(nom_hotel: str, nom_client: str, date_arrivee: str, date
 def obtenir_informations_reservation(nom_client: str) -> str:
     """Obtient les informations d'une réservation.
         Prend en entrée le nom du client."""
-    csv_file = "database/reservations.csv"
+    csv_file = f"{data_path}/reservations.csv"
     with open(csv_file, "r", newline='', encoding='utf-8') as f:
         reader = csv.reader(f)
         for row in reader:
@@ -148,7 +152,7 @@ def terminer_conversation() -> str:
 class SamantaRealtimeAgent:
     """Agent vocal temps réel pour les réservations d'hôtels."""
     
-    def __init__(self, langue) -> None:
+    def __init__(self, langue: str = "french") -> None:
         self.session: RealtimeSession | None = None
         self.audio_stream: sd.InputStream | None = None
         self.audio_player: sd.OutputStream | None = None
@@ -177,17 +181,9 @@ class SamantaRealtimeAgent:
         self.warmup_complete = False
         self.warmup_chunks_needed = 200  # 20 chunks = 0.8 secondes de warmup
 
-        if langue == "french":
-            data_path = "database/french"
-        else:
-            data_path = "database/english"
-
         system_prompt = load_database(f"{data_path}/syst_prompt.txt")
         system_prompt += load_database(f"{data_path}/infos_generales.txt")
 
-        self.phrase_accueil = load_database(f"{data_path}/sentence.txt")
-
-        # Configuration de l'agent
         self.agent = RealtimeAgent(
             name="Samanta",
             instructions=system_prompt,
@@ -325,7 +321,8 @@ class SamantaRealtimeAgent:
                 print("✅ Connecté!")
                 
                 # Démarrer la conversation avec un message d'accueil
-                await session.send_message(f"Enonce la phrase d'accueil suivante: {self.phrase_accueil}")
+                phrase_accueil = load_database(f"{data_path}/sentence.txt")
+                await session.send_message(phrase_accueil)
 
                 await self.start_audio_recording()
                 print("\nDébut de la conversation")
@@ -339,7 +336,7 @@ class SamantaRealtimeAgent:
             if self.audio_player:
                 self.audio_player.close()
             time.sleep(3)
-            print("\n👋 Conversation terminée")
+            print("\n👋 Bye-bye!")
 
     async def start_audio_recording(self) -> None:
         """Démarre l'enregistrement audio."""
@@ -403,7 +400,7 @@ class SamantaRealtimeAgent:
             if event.type == "agent_start":
                 print("💬 Samanta parle")
             elif event.type == "agent_end":
-                # Si nous devons quitter après que l'agent ait fini de parler
+                # When the agent has finished speaking, check if we need to exit
                 if self.should_exit:
                     self.recording = False
                     if self.session:
@@ -461,7 +458,7 @@ class SamantaRealtimeAgent:
 
 
 if __name__ == "__main__":
-    samanta = SamantaRealtimeAgent(langue="french")
+    samanta = SamantaRealtimeAgent(langue="english")
     try:
         asyncio.run(samanta.run())
     except KeyboardInterrupt:
