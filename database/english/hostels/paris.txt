@@ -1,0 +1,30 @@
+--- HÔTEL MONT-BLANC EXCELLENCE ---
+Address: 123 Route du Mont-Blanc, 74400 Chamonix
+Stars: 5 stars
+Description: Luxury chalet at the foot of Mont Blanc, perfect for skiing and mountain enthusiasts.
+
+Rooms available:
+- Private Chalet: £1,800/night, 2 available, capacity 8 people, private jacuzzi
+- Alpine Suite: £550/night, 4 available, capacity 4 people, Mont Blanc view
+- Mountain Room: £320/night, 6 available, capacity 2 people
+- Cosy Room: £190/night, 8 available, capacity 2 people
+
+Facilities: Heated ski room, free ski shuttle, alpine spa, sauna, hammam, fireplaces in every room
+
+Restaurant ‘L'Altitude’:
+- Cuisine: Savoyard gourmet
+- Chef: Jean-Marc Dubois
+- Opening hours: Breakfast 6.30am-10am, Dinner 7pm-10pm
+- Specialities: Truffle fondue, Premium raclette, Tartiflette revisited
+- Menu: £55-£95
+
+Bar ‘Le Sommet’:
+- Opening hours: 4pm-midnight
+- Mulled wine, gourmet hot chocolate, alpine cocktails
+
+Activities on offer:
+- Skiing with a private instructor: Every day, €200/half day
+- Snowshoe hiking: Tuesday and Thursday 9 a.m., £60/person
+- Private spa for couples: By reservation, £180/2 hours
+- Mont Blanc helicopter flight: On request, £350/person
+- Traditional fondue evening: Friday 8 p.m., included for residents

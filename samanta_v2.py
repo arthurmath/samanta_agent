@@ -1,6 +1,7 @@
 """
 Samanta - Agent vocal pour réservations d'hôtels de luxe
 Utilise OpenAI Realtime API (WebSocket) pour une interaction vocale fluide.
+Written by Gemini, doesn't work well
 """
 
 import os

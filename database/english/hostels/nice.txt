@@ -1,0 +1,31 @@
+--- HÔTEL CÔTE D'AZUR PRESTIGE ---
+Address: 42 Promenade des Anglais, 06000 Nice
+Stars: 5 stars
+Description: Mediterranean resort with private beach and panoramic view of the Baie des Anges.
+
+Available rooms:
+- Private Villa with pool: €2,500/night, 1 available, capacity 6 people
+- Mediterranean Suite: €800/night, 3 available, capacity 3 people, sea view
+- Superior Room: €380/night, 10 available, capacity 2 people, sea view
+- Comfort Room: €220/night, 15 available, capacity 2 people, garden view
+
+Facilities: Private beach, 2 swimming pools (indoor and outdoor), 1,500 m² spa, tennis court, helipad
+
+La Méditerranée Restaurant:
+- Cuisine: Refined Mediterranean, seafood
+- Chef: Maria Santini
+- Opening hours: Breakfast 7am-11am, Lunch 12pm-3pm, Dinner 7pm-11pm
+- Terrace with sea view
+- Menu: €65-120
+
+Le Jardin restaurant:
+- Cuisine: Light and healthy cuisine
+- Opening hours: 12pm-6pm (continuous service)
+- Buffet: €45
+
+Activities on offer:
+- Scuba diving: Every day at 9am and 2pm, €80/person
+- Yacht excursion: By reservation, £450 (max. 4 people)
+- Yoga classes on the beach: Every morning at 7:30 a.m., free for residents
+- Tour of Monaco: Wednesday and Saturday, £150/person
+- Olive oil tasting: Thursday at 4 p.m., £60/person
