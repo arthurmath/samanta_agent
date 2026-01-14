@@ -1,6 +1,5 @@
 """
-Samanta v3 - Agent vocal temps réel pour réservations d'hôtels de luxe
-Utilise l'API Realtime d'OpenAI pour une interaction vocale à faible latence.
+Samanta v4 - Agent vocal temps réel pour le marketing
 """
 
 import asyncio
@@ -33,7 +32,7 @@ CHUNK_LENGTH_S = 0.04  # 40ms
 SAMPLE_RATE = 24000
 FORMAT = np.int16
 CHANNELS = 1
-ENERGY_THRESHOLD = 0.05  # Seuil RMS pour détection de parole (augmenté pour éviter faux positifs)
+ENERGY_THRESHOLD = 0.1  # Seuil RMS pour détection de parole (augmenté pour éviter faux positifs)
 PREBUFFER_CHUNKS = 3
 FADE_OUT_MS = 12
 PLAYBACK_ECHO_MARGIN = 0.01  # Marge supplémentaire pour filtrer l'écho
@@ -43,104 +42,30 @@ data_path = "database/french"
 # data_path = "database/english"
 
 
-
-def load_database(path: str, base: str = data_path) -> str:
-    """Charge la base de données d'un hôtel."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    full_path = os.path.join(script_dir, base, path)
-    with open(full_path, "r", encoding="utf-8") as f:
-        return f.read()
-
+SYSTEM_PROMPT = """You are Samanta, a friendly and professional voice assistant specialized in luxury hotel bookings for Societe des Bains de Mer (SBM) in Monaco.
+You are a Luxury consultant specialized in everything SBM, an expert strategist in luxury hostels and restaurants, 
+aware of trends with a creative and marketing mind. Aware of numbers, what works and what doesn’t, with a strong background in brand strategy in advertising 
+and very connected to innovation in the digital spaces, including AI.
+ 
+Your role:
+- Advise, inform and empower teams with strategic planning and knowledge in luxury;
+- Give marketing insights in e-commerce best practices and maximise conversion;
+- Describe shortly your role as a Expert Strategic AI Consultant in the world of Luxury Hospitality;
+- You are well informed in the world of SEO, GEO and what it takes to make websites and e-commerce platforms cover;
+- You are there to support the Team at Niji succeed in creating a new digital experience for SBM with the best information available in the market. Always double check source is correct
+- Be concise but informative (your answers will be read aloud).
+- Always respond in British English with an elegant and warm tone.
+- Your boss is Chris De Abreu, International Executive Creative Director at Niji, he is the one mentoring you.
+- Don't start talking unless you invite you to do so.
+"""
 
 
 # Définition des outils pour l'agent
 
 @function_tool
-def rechercher_hotel(nom_hotel: str) -> str:
-    """Recherche les informations sur un hôtel spécifique.
-        Prend en entrée le nom de l'hôtel."""
-    nom_lower = nom_hotel.lower()
-    if "royal" in nom_lower or "palace" in nom_lower or "paris" in nom_lower:
-        return load_database(f"hotels/paris.txt")
-    elif "azur" in nom_lower or "nice" in nom_lower or "méditerranée" in nom_lower:
-        return load_database(f"hotels/nice.txt")
-    elif "mont" in nom_lower or "blanc" in nom_lower or "chamonix" in nom_lower:
-        return load_database(f"hotels/chamonix.txt")
-    return "Hôtel non trouvé."
-
-
-@function_tool
-def reserver_hotel(nom_hotel: str, nom_client: str, date_arrivee: str, date_depart: str, nombre_personnes: int) -> str:
-    """Réserve un hôtel.
-        Prend en entrée le nom de l'hôtel, le nom du client, la date d'arrivée, la date de départ et le nombre de personnes."""
-    csv_file = f"reservations.csv"
-    file_exists = os.path.exists(csv_file)
-    
-    with open(csv_file, "a", newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["nom_hotel", "nom_client", "date_arrivee", "date_depart", "nombre_personnes"])
-        writer.writerow([nom_hotel, nom_client, date_arrivee, date_depart, nombre_personnes])
-    
-    return f"Hôtel {nom_hotel} réservé du {date_arrivee} au {date_depart} pour {nombre_personnes} personnes."
-
-@function_tool
-def annuler_reservation(nom_hotel: str, nom_client: str, date_arrivee: str, date_depart: str, nombre_personnes: int) -> str:
-    """Annule une réservation.
-        Prend en entrée le nom de l'hôtel, le nom du client, la date d'arrivée, la date de départ et le nombre de personnes."""
-    csv_file = f"reservations.csv"
-    if not os.path.exists(csv_file):
-        return "Aucune réservation trouvée."
-    
-    # Lire toutes les réservations
-    rows = []
-    reservation_found = False
-    with open(csv_file, "r", newline='', encoding='utf-8') as f:
-        reader = csv.reader(f)
-        header = next(reader, None)
-        if header:
-            rows.append(header)
-        
-        for row in reader:
-            # Vérifier si la réservation correspond
-            if (row[0] == nom_hotel and row[1] == nom_client and 
-                row[2] == date_arrivee and row[3] == date_depart and 
-                int(row[4]) == nombre_personnes):
-                reservation_found = True
-                # Ne pas ajouter cette ligne (= suppression)
-            else:
-                rows.append(row)
-    
-    if not reservation_found:
-        return "Réservation non trouvée dans la base de données."
-    
-    # Réécrire le fichier sans la réservation annulée
-    with open(csv_file, "w", newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerows(rows)
-    
-    return f"Réservation de l'hôtel {nom_hotel} pour {nom_client} du {date_arrivee} au {date_depart} annulée avec succès."
-
-@function_tool
-def obtenir_informations_reservation(nom_client: str) -> str:
-    """Obtient les informations d'une réservation.
-        Prend en entrée le nom du client."""
-    csv_file = f"reservations.csv"
-    with open(csv_file, "r", newline='', encoding='utf-8') as f:
-        reader = csv.reader(f)
-        for row in reader:
-            if row[1] == nom_client:
-                return f"Réservation de l'hôtel {row[0]} pour {row[1]} du {row[2]} au {row[3]} pour {row[4]} personnes."
-
-@function_tool
 def terminer_conversation() -> str:
     """Termine la conversation."""
     return "Conversation terminée"  
-
-
-
-
-
 
 
 
@@ -181,13 +106,10 @@ class SamantaRealtimeAgent:
         self.warmup_complete = False
         self.warmup_chunks_needed = 200  # 20 chunks = 0.8 secondes de warmup
 
-        system_prompt = load_database(f"syst_prompt.txt")
-        system_prompt += load_database(f"infos_generales.txt")
-
         self.agent = RealtimeAgent(
             name="Samanta",
-            instructions=system_prompt,
-            tools=[rechercher_hotel, reserver_hotel, annuler_reservation, obtenir_informations_reservation, terminer_conversation],
+            instructions=SYSTEM_PROMPT,
+            tools=[terminer_conversation],
         )
 
 
@@ -285,7 +207,7 @@ class SamantaRealtimeAgent:
     async def run(self) -> None:
         """Lance l'agent Samanta."""
         print("=" * 60)
-        print("🏨 Samanta v3 - Agent Vocal SBM")
+        print("🏨 Samanta v4 - Agent Vocal Marketing")
         print("=" * 60)
         print("\nCommande Ctrl+C pour quitter")
         print("Connexion en cours...")
@@ -317,10 +239,6 @@ class SamantaRealtimeAgent:
             async with await runner.run(model_config=model_config) as session:
                 self.session = session
                 print("✅ Connecté!")
-                
-                # Démarrer la conversation avec un message d'accueil
-                phrase_accueil = load_database(f"sentence.txt")
-                await session.send_message(phrase_accueil)
 
                 await self.start_audio_recording()
                 print("\nDébut de la conversation")
@@ -385,7 +303,7 @@ class SamantaRealtimeAgent:
 
         except Exception as e:
             # print(f"Erreur capture audio: {e}")
-            print("")
+            pass
         finally:
             if self.audio_stream and self.audio_stream.active:
                 self.audio_stream.stop()
