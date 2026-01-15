@@ -1,5 +1,5 @@
 """
-Samanta v4 - Agent vocal temps réel pour le marketing
+Samanta v4 - Agent vocal temps réel pour le marketing/consulting
 """
 
 import asyncio

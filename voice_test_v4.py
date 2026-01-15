@@ -189,11 +189,8 @@ class SamantaRealtimeAgent:
 
     async def run(self, voice: str) -> None:
         """Lance l'agent Samanta."""
-        print("=" * 60)
-        print("🏨 Samanta v4 - Agent Vocal Marketing")
-        print("=" * 60)
+        print(f"🏨 Samanta v4 - Voice Test: {voice}")
         print("\nCommande Ctrl+C pour quitter")
-        print("Connexion en cours...")
 
         self.audio_player = sd.OutputStream(
             channels=CHANNELS,
@@ -233,7 +230,6 @@ class SamantaRealtimeAgent:
                 self.audio_player.stop()
             if self.audio_player:
                 self.audio_player.close()
-            print("\n👋 Bye-bye!")
 
     async def start_audio_recording(self) -> None:
         """Démarre l'enregistrement audio."""
@@ -297,11 +293,9 @@ class SamantaRealtimeAgent:
             if event.type == "agent_start":
                 print("💬 Samanta parle")
             elif event.type == "agent_end":
-                # When the agent has finished speaking, check if we need to exit
-                if self.should_exit:
-                    self.recording = False
-                    if self.session:
-                        await self.session.close()
+                self.recording = False
+                if self.session:
+                    await self.session.close()
             elif event.type == "tool_start":
                 print(f"🔧 Outil utilisé: {event.tool.name}")
             elif event.type == "tool_end":
@@ -316,8 +310,6 @@ class SamantaRealtimeAgent:
                 print("🎤 Voix détectée")
                 self.prebuffering = True
                 self.interrupt_event.set()
-            elif event.type == "error":
-                print(f"❌ Erreur: {event.error}")
         except Exception as e:
             print(f"Erreur événement: {str(e)[:100]}")
 
@@ -344,25 +336,25 @@ class SamantaRealtimeAgent:
 
 if __name__ == "__main__":
     voices = [
-    "alloy", # 6
-    "marin", # 7
-    "sage", # 5
-    "nova", # 7 
-    "fable", # 4
-    "shimmer", # 4
-    "echo", # 3
-    "ash", # 1
-    "ballad", # 1
-    "coral", # 2
-    "onyx", # 0
-    "verse", # 1
-    "cedar" # 1
-]
+        "alloy", # 6
+        "marin", # 7
+        "sage", # 5
+        "nova", # 7 
+        "fable", # 4
+        "shimmer", # 4
+        "echo", # 3
+        "ash", # 1
+        "ballad", # 1
+        "coral", # 2
+        "onyx", # 0
+        "verse", # 1
+        "cedar" # 1
+    ]
 
     samanta = SamantaRealtimeAgent()
+    
     try:
         for voice in voices:
-            print(f"Testing voice: {voice}")
             asyncio.run(samanta.run(voice=voice))
     except KeyboardInterrupt:
         sys.exit(0)

@@ -1,5 +1,5 @@
 """
-Samanta v3 - Agent vocal temps réel pour réservations d'hôtels de luxe
+Samanta v3 - Agent vocal temps réel destiné aux clients pour réservations d'hôtels de luxe.
 Utilise l'API Realtime d'OpenAI pour une interaction vocale à faible latence.
 """
 
