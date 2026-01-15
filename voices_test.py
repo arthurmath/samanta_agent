@@ -20,8 +20,8 @@ voices = [
     "marin", # 7
     "sage", # 5
     "nova", # 7 moins rapide
-    # "fable", # 4
-    # "shimmer", # 4
+    "fable", # 4
+    "shimmer", # 4
     # "echo", # 3
     # "ash", # 1
     # "ballad", # 1

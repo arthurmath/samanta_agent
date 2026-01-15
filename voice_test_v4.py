@@ -187,7 +187,7 @@ class SamantaRealtimeAgent:
                 self.current_audio_chunk = None
                 self.chunk_position = 0
 
-    async def run(self) -> None:
+    async def run(self, voice: str) -> None:
         """Lance l'agent Samanta."""
         print("=" * 60)
         print("🏨 Samanta v4 - Agent Vocal Marketing")
@@ -214,22 +214,21 @@ class SamantaRealtimeAgent:
                         "interrupt_response": True,
                         "create_response": True,
                     },
-                    "voice": "marin",
+                    "voice": voice,
                 },
             }
 
             async with await runner.run(model_config=model_config) as session:
                 self.session = session
-                print("✅ Connecté!")
-
-                await self.start_audio_recording()
-                print("\nDébut de la conversation")
+                phrase_accueil = "Say this welcome sentence: 'Hello and welcome! I'm Samanta, your personal assistant for SBM hotel bookings. How can I help you today?'"
+                await session.send_message(phrase_accueil)
 
                 async for event in session:
                     await self._on_event(event)
 
-        finally:
             time.sleep(3)
+
+        finally:
             if self.audio_player and self.audio_player.active:
                 self.audio_player.stop()
             if self.audio_player:
@@ -319,16 +318,6 @@ class SamantaRealtimeAgent:
                 self.interrupt_event.set()
             elif event.type == "error":
                 print(f"❌ Erreur: {event.error}")
-            # elif event.type == "raw_model_event":
-            #     # Afficher les transcriptions
-            #     data = event.data
-                # if data.type != "raw_server_event" and data.type != "transcript_delta" and data.type != "audio":
-                #     print(f"type: {data.type}")
-                # if hasattr(data, "type"):
-                #     if data.type == "turn_started":
-                #         print(f"\n💬 Samanta: {data.transcript}")
-                #     elif data.type == "conversation.item.input_audio_transcription.completed":
-                #         print(f"\n👤 Vous: {data.transcript}")
         except Exception as e:
             print(f"Erreur événement: {str(e)[:100]}")
 
@@ -354,9 +343,27 @@ class SamantaRealtimeAgent:
 
 
 if __name__ == "__main__":
+    voices = [
+    "alloy", # 6
+    "marin", # 7
+    "sage", # 5
+    "nova", # 7 
+    "fable", # 4
+    "shimmer", # 4
+    "echo", # 3
+    "ash", # 1
+    "ballad", # 1
+    "coral", # 2
+    "onyx", # 0
+    "verse", # 1
+    "cedar" # 1
+]
+
     samanta = SamantaRealtimeAgent()
     try:
-        asyncio.run(samanta.run())
+        for voice in voices:
+            print(f"Testing voice: {voice}")
+            asyncio.run(samanta.run(voice=voice))
     except KeyboardInterrupt:
         sys.exit(0)
 
