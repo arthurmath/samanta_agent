@@ -73,7 +73,7 @@ def rechercher_hotel(nom_hotel: str) -> str:
 def reserver_hotel(nom_hotel: str, nom_client: str, date_arrivee: str, date_depart: str, nombre_personnes: int) -> str:
     """Réserve un hôtel.
         Prend en entrée le nom de l'hôtel, le nom du client, la date d'arrivée, la date de départ et le nombre de personnes."""
-    csv_file = f"reservations.csv"
+    csv_file = f"{data_path}/reservations.csv"
     file_exists = os.path.exists(csv_file)
     
     with open(csv_file, "a", newline='', encoding='utf-8') as f:
@@ -88,7 +88,7 @@ def reserver_hotel(nom_hotel: str, nom_client: str, date_arrivee: str, date_depa
 def annuler_reservation(nom_hotel: str, nom_client: str, date_arrivee: str, date_depart: str, nombre_personnes: int) -> str:
     """Annule une réservation.
         Prend en entrée le nom de l'hôtel, le nom du client, la date d'arrivée, la date de départ et le nombre de personnes."""
-    csv_file = f"reservations.csv"
+    csv_file = f"{data_path}/reservations.csv"
     if not os.path.exists(csv_file):
         return "Aucune réservation trouvée."
     
@@ -125,7 +125,7 @@ def annuler_reservation(nom_hotel: str, nom_client: str, date_arrivee: str, date
 def obtenir_informations_reservation(nom_client: str) -> str:
     """Obtient les informations d'une réservation.
         Prend en entrée le nom du client."""
-    csv_file = f"reservations.csv"
+    csv_file = f"{data_path}/reservations.csv"
     with open(csv_file, "r", newline='', encoding='utf-8') as f:
         reader = csv.reader(f)
         for row in reader:

@@ -2,7 +2,12 @@
 
 Société des Bains de Mers (SBM)
 A company based in Monaco that owns various hotels in France.
-These hotels cater to a wealthy clientele seeking a luxurious experience.
+These hotels cater to a wealthy and/or famous clientele seeking a luxurious experience.
+
+SBM available hotels:
+1. Hôtel Royal Palace - Paris (5 stars, view of the Eiffel Tower)
+2. Hôtel Côte d'Azur Prestige - Nice (4 stars, private beach)
+3. Hôtel Mont-Blanc Excellence - Chamonix (5 stars, skiing and mountains)
 
 Cancellation policy:
 - Free cancellation up to 48 hours before arrival

@@ -1,5 +1,6 @@
 """
-Samanta v4 - Agent vocal temps réel pour le marketing/consulting
+Samanta v4 - Agent vocal temps réel pour le marketing/consulting.
+Utilise l'API Realtime d'OpenAI pour une interaction vocale à faible latence.
 """
 
 import asyncio
@@ -53,9 +54,6 @@ Your role:
 - Your boss is Chris De Abreu, International Executive Creative Director at Niji (French digital consulting firm), he is the one mentoring you.
 - Don't start talking unless we invite you to do so.
 """
-
-
-
 
 
 class SamantaRealtimeAgent:
